@@ -1,0 +1,12 @@
+langgraph
+langchain-core
+psycopg2-binary
+playwright
+beautifulsoup4
+lxml
+loguru
+cohere
+python-dotenv
+python-dateutil
+pydantic
+httpx
