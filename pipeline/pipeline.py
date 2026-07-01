@@ -83,6 +83,23 @@ def run_skip_scraping(setores: list[str] | None = None) -> dict:
     )
     logger.info(f"Startups com classificação mas sem recomendação: {len(sem_recom)}")
 
+    sem_brief = fetch_all(
+        f"""SELECT s.id, s.nome, s.website, s.setor, s.descricao,
+                   s.produto_principal, s.cidade, s.estagio, s.email_contato
+            FROM startups s
+            WHERE s.id IN (
+                SELECT DISTINCT startup_id FROM recomendacoes
+            )
+            AND s.id NOT IN (
+                SELECT DISTINCT startup_id FROM briefings
+            )
+            {where_setor}
+            ORDER BY s.created_at ASC
+            LIMIT 50""",
+        tuple(params)
+    )
+    logger.info(f"Startups com recomendação mas sem briefing: {len(sem_brief)}")
+
     if sem_recom:
         for s in sem_recom:
             clas = fetch_one(
@@ -90,6 +107,7 @@ def run_skip_scraping(setores: list[str] | None = None) -> dict:
                 (s["id"],)
             )
             if clas:
+                s["startup_id"] = s["id"]
                 s["ai_classification"] = clas["ai_classification"]
                 s["ramo_principal"] = clas["ramo_principal"]
                 s["usa_nvidia"] = clas["usa_nvidia"]
@@ -100,22 +118,57 @@ def run_skip_scraping(setores: list[str] | None = None) -> dict:
 
         classificadas.extend(sem_recom)
 
-    if not classificadas:
+    briefings = []
+
+    if classificadas:
+        logger.info(f"Total a processar: {len(classificadas)}")
+        validadas = run_evidence_validator(classificadas)
+        validas = [s for s in validadas if not s.get("low_confidence")]
+        logger.info(f"Validadas: {len(validadas)}, válidas: {len(validas)}")
+
+        recomendacoes = run_rag_agent(validas)
+        if recomendacoes:
+            finais = run_recommendation_agent(recomendacoes)
+            briefings = run_briefing_agent(finais)
+
+    if sem_brief:
+        logger.info(f"Processando {len(sem_brief)} startups com recomendação mas sem briefing...")
+        rec_para_brief = []
+        for s in sem_brief:
+            s["startup_id"] = s["id"]
+            recs_db = fetch_all(
+                "SELECT * FROM recomendacoes WHERE startup_id = ? ORDER BY rank ASC",
+                (s["id"],)
+            )
+            recs_list = [
+                {
+                    "rank": r["rank"],
+                    "tecnologia": r["tecnologia"],
+                    "categoria": r["categoria"],
+                    "justificativa_tecnica": r["justificativa_tecnica"],
+                    "justificativa_negocio": r["justificativa_negocio"],
+                    "nivel_prioridade": r["nivel_prioridade"],
+                    "complexidade_implementacao": r["complexidade_implementacao"],
+                    "melhor_encaixe": r.get("melhor_encaixe"),
+                    "proxima_acao_sugerida": r["proxima_acao_sugerida"],
+                    "evidencias_usadas": json.loads(r["evidencias_usadas"]) if isinstance(r.get("evidencias_usadas"), str) else r.get("evidencias_usadas", []),
+                    "url_referencia": r["url_referencia"]
+                }
+                for r in recs_db
+            ]
+            if recs_list:
+                rec_para_brief.append({
+                    "startup_id": s["id"],
+                    "startup_nome": s["nome"],
+                    "recomendacoes": recs_list
+                })
+        if rec_para_brief:
+            briefings_extra = run_briefing_agent(rec_para_brief)
+            briefings.extend(briefings_extra)
+            logger.info(f"Briefings extras: {len(briefings_extra)}")
+
+    if not classificadas and not sem_brief:
         logger.warning("Nenhuma startup para processar")
-        return {"startups_coletadas": [], "briefings": [], "erros": []}
-
-    logger.info(f"Total a processar: {len(classificadas)}")
-    validadas = run_evidence_validator(classificadas)
-    validas = [s for s in validadas if not s.get("low_confidence")]
-    logger.info(f"Validadas: {len(validadas)}, válidas: {len(validas)}")
-
-    recomendacoes = run_rag_agent(validas)
-    if not recomendacoes:
-        logger.warning("Nenhuma recomendação gerada (RAG vazio)")
-        return {"startups_coletadas": classificadas, "briefings": [], "erros": []}
-
-    finais = run_recommendation_agent(recomendacoes)
-    briefings = run_briefing_agent(finais)
 
     logger.info(f"Resumo: {len(briefings)} briefings gerados")
     return {"startups_coletadas": classificadas, "briefings": briefings, "erros": []}

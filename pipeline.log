@@ -533,3 +533,31 @@
 2026-06-30T23:32:59.682479-0300 | INFO | Startups com classificação mas sem recomendação: 16
 2026-06-30T23:32:59.963098-0300 | INFO | Total a processar: 16
 2026-06-30T23:36:50.764468-0300 | INFO | Validadas: 16, válidas: 16
+2026-07-01T00:11:05.514869-0300 | INFO | Modo --skip-scraping: carregando startups do banco sem classificação/recomendação
+2026-07-01T00:11:05.538518-0300 | INFO | Startups sem classificação: 8
+2026-07-01T00:11:05.538721-0300 | INFO | Classificando 8 startups...
+2026-07-01T00:11:55.468321-0300 | INFO | Startups com classificação mas sem recomendação: 50
+2026-07-01T00:11:56.291350-0300 | INFO | Total a processar: 58
+2026-07-01T00:31:16.050124-0300 | INFO | Validadas: 58, válidas: 58
+2026-07-01T01:11:31.282361-0300 | INFO | Modo --skip-scraping: carregando startups do banco sem classificação/recomendação
+2026-07-01T01:11:31.288301-0300 | INFO | Startups sem classificação: 0
+2026-07-01T01:11:31.296268-0300 | INFO | Startups com classificação mas sem recomendação: 46
+2026-07-01T01:11:31.530006-0300 | INFO | Total a processar: 46
+2026-07-01T01:26:55.565436-0300 | INFO | Validadas: 46, válidas: 46
+2026-07-01T01:57:16.748820-0300 | INFO | Resumo: 46 briefings gerados
+2026-07-01T01:57:16.749527-0300 | INFO | Backfill concluído: 46 briefings
+2026-07-01T01:58:22.621067-0300 | INFO | Modo --skip-scraping: carregando startups do banco sem classificação/recomendação
+2026-07-01T01:58:22.630471-0300 | INFO | Startups sem classificação: 0
+2026-07-01T01:58:22.638055-0300 | INFO | Startups com classificação mas sem recomendação: 46
+2026-07-01T01:58:22.928235-0300 | INFO | Total a processar: 46
+2026-07-01T02:17:03.304175-0300 | INFO | Validadas: 46, válidas: 46
+2026-07-01T02:45:44.217880-0300 | INFO | Resumo: 46 briefings gerados
+2026-07-01T02:45:44.219471-0300 | INFO | Backfill concluído: 46 briefings
+2026-07-01T02:46:50.461355-0300 | INFO | Modo --skip-scraping: carregando startups do banco sem classificação/recomendação
+2026-07-01T02:46:50.472539-0300 | INFO | Startups sem classificação: 0
+2026-07-01T02:46:50.480381-0300 | INFO | Startups com classificação mas sem recomendação: 0
+2026-07-01T02:46:50.487617-0300 | INFO | Startups com recomendação mas sem briefing: 8
+2026-07-01T02:46:50.487825-0300 | INFO | Processando 8 startups com recomendação mas sem briefing...
+2026-07-01T02:46:51.102696-0300 | INFO | Briefings extras: 8
+2026-07-01T02:46:51.102880-0300 | INFO | Resumo: 8 briefings gerados
+2026-07-01T02:46:51.102951-0300 | INFO | Backfill concluído: 8 briefings
