@@ -20,6 +20,107 @@ def carregar_setores() -> list[dict]:
         return json.load(f)
 
 
+def run_skip_scraping(setores: list[str] | None = None) -> dict:
+    from pipeline.db.connection import fetch_all, fetch_one
+    from pipeline.agents.classifier import run_classifier
+    from pipeline.agents.evidence_validator import run_evidence_validator
+    from pipeline.agents.rag_agent import run_rag_agent
+    from pipeline.agents.recommendation_agent import run_recommendation_agent
+    from pipeline.agents.briefing_agent import run_briefing_agent
+
+    logger.info("Modo --skip-scraping: carregando startups do banco sem classificação/recomendação")
+
+    where_setor = ""
+    params: list = []
+    if setores:
+        placeholders = ",".join("?" for _ in setores)
+        where_setor = f"AND s.setor IN ({placeholders})"
+        params.extend(setores)
+
+    rows_sem_class = fetch_all(
+        f"""SELECT s.id, s.nome, s.website, s.setor, s.descricao,
+                   s.produto_principal, s.cidade, s.estagio, s.email_contato
+            FROM startups s
+            WHERE s.id NOT IN (
+                SELECT DISTINCT startup_id FROM classificacoes
+            )
+            {where_setor}
+            ORDER BY s.created_at ASC
+            LIMIT 50""",
+        tuple(params)
+    )
+    logger.info(f"Startups sem classificação: {len(rows_sem_class)}")
+
+    if rows_sem_class:
+        logger.info(f"Classificando {len(rows_sem_class)} startups...")
+        classificadas = run_classifier(rows_sem_class, setor_relevance=0.5)
+        if classificadas:
+            for c in classificadas:
+                sid = c.get("startup_id")
+                if sid and sid in {s["id"] for s in rows_sem_class}:
+                    orig = next(s for s in rows_sem_class if s["id"] == sid)
+                    c["descricao"] = orig.get("descricao", "") or ""
+                    c["produto_principal"] = orig.get("produto_principal", "") or ""
+        else:
+            logger.warning("Nenhuma startup classificada (limite Cohere?)")
+    else:
+        classificadas = []
+
+    sem_recom = fetch_all(
+        f"""SELECT s.id, s.nome, s.website, s.setor, s.descricao,
+                   s.produto_principal, s.cidade, s.estagio, s.email_contato
+            FROM startups s
+            WHERE s.id IN (
+                SELECT DISTINCT startup_id FROM classificacoes
+            )
+            AND s.id NOT IN (
+                SELECT DISTINCT startup_id FROM recomendacoes
+            )
+            {where_setor}
+            ORDER BY s.created_at ASC
+            LIMIT 50""",
+        tuple(params)
+    )
+    logger.info(f"Startups com classificação mas sem recomendação: {len(sem_recom)}")
+
+    if sem_recom:
+        for s in sem_recom:
+            clas = fetch_one(
+                "SELECT * FROM classificacoes WHERE startup_id = ? ORDER BY classificado_em DESC LIMIT 1",
+                (s["id"],)
+            )
+            if clas:
+                s["ai_classification"] = clas["ai_classification"]
+                s["ramo_principal"] = clas["ramo_principal"]
+                s["usa_nvidia"] = clas["usa_nvidia"]
+                s["nvidia_confidence"] = clas["nvidia_confidence"]
+                s["gaps_identificados"] = json.loads(clas["gaps_identificados"]) if clas.get("gaps_identificados") else []
+                s["score_fit_nvidia"] = clas["score_fit_nvidia"]
+                s["justificativa"] = clas["justificativa"]
+
+        classificadas.extend(sem_recom)
+
+    if not classificadas:
+        logger.warning("Nenhuma startup para processar")
+        return {"startups_coletadas": [], "briefings": [], "erros": []}
+
+    logger.info(f"Total a processar: {len(classificadas)}")
+    validadas = run_evidence_validator(classificadas)
+    validas = [s for s in validadas if not s.get("low_confidence")]
+    logger.info(f"Validadas: {len(validadas)}, válidas: {len(validas)}")
+
+    recomendacoes = run_rag_agent(validas)
+    if not recomendacoes:
+        logger.warning("Nenhuma recomendação gerada (RAG vazio)")
+        return {"startups_coletadas": classificadas, "briefings": [], "erros": []}
+
+    finais = run_recommendation_agent(recomendacoes)
+    briefings = run_briefing_agent(finais)
+
+    logger.info(f"Resumo: {len(briefings)} briefings gerados")
+    return {"startups_coletadas": classificadas, "briefings": briefings, "erros": []}
+
+
 def run_pipeline(setor_alvo: str) -> dict:
     logger.info("Iniciando pipeline NVIDIA Startup AI Radar")
     logger.info(f"Setor alvo: {setor_alvo}")
@@ -77,6 +178,14 @@ def main():
             logger.info(f"Executando {caminho}...")
             subprocess.run([sys.executable, caminho], cwd="src")
         logger.info("Fase 0 concluída")
+        return
+
+    if args.skip_scraping:
+        setores_alvo = None
+        if args.setor:
+            setores_alvo = [args.setor]
+        resultado = run_skip_scraping(setores=setores_alvo)
+        logger.info(f"Backfill concluído: {len(resultado.get('briefings', []))} briefings")
         return
 
     if args.setor:

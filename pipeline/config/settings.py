@@ -8,7 +8,7 @@ TOP_K_RAG = 15
 RERANK_TOP_N = 5
 
 # Validação
-MIN_EVIDENCE_SCORE = float(os.getenv("MIN_EVIDENCE_SCORE", "0.6"))
+MIN_EVIDENCE_SCORE = float(os.getenv("MIN_EVIDENCE_SCORE", "0.0"))
 
 # Pipeline
 MAX_STARTUPS_PER_RUN = int(os.getenv("MAX_STARTUPS_PER_RUN", "100"))

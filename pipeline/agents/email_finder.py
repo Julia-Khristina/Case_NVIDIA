@@ -283,12 +283,71 @@ def _extrair_dados_cnpj(dados: dict) -> dict:
     return result
 
 
+def _buscar_linkedin(nome: str) -> str | None:
+    try:
+        with DDGS() as ddgs:
+            for r in ddgs.text(f"{nome} linkedin", max_results=5):
+                url = r.get("href", "")
+                if "linkedin.com/company/" in url or "linkedin.com/school/" in url:
+                    return url.split("?")[0]
+                if "linkedin.com/in/" in url and "/company/" not in url and "/school/" not in url:
+                    continue
+    except Exception as e:
+        print(f"  [EmailFinder] Erro buscando LinkedIn de {nome}: {e}")
+    return None
+
+
+def _extrair_dados_linkedin(linkedin_url: str) -> dict:
+    dados = {"email": None, "cidade": None, "funcionarios": None}
+    try:
+        req = urllib.request.Request(
+            linkedin_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8", errors="replace")
+        soup = BeautifulSoup(html, "lxml")
+
+        for meta in soup.find_all("meta"):
+            prop = (meta.get("property") or "").lower()
+            name = (meta.get("name") or "").lower()
+            content = meta.get("content", "")
+            if "og:description" in prop or "description" in name:
+                texto = content
+                for match in _PADRAO_EMAIL.findall(texto):
+                    dados["email"] = match.lower()
+                for m in _PADRAO_CIDADE_BR.findall(texto):
+                    cidade, uf = m
+                    dados["cidade"] = f"{cidade.strip()} - {uf}"
+
+        page_text = soup.get_text(separator=" ") if soup else ""
+        if not dados.get("email"):
+            for match in _PADRAO_EMAIL.findall(page_text):
+                dados["email"] = match.lower()
+                break
+        if not dados.get("cidade"):
+            for m in _PADRAO_CIDADE_BR.findall(page_text):
+                cidade, uf = m
+                dados["cidade"] = f"{cidade.strip()} - {uf}"
+                break
+        funcionario_match = _PADRAO_FUNCIONARIOS.search(page_text)
+        if funcionario_match:
+            dados["funcionarios"] = funcionario_match.group(0).strip()
+    except Exception as e:
+        print(f"  [EmailFinder] Erro ao acessar LinkedIn {linkedin_url}: {e}")
+    return dados
+
+
 def _buscar_email_ddg(nome: str) -> str | None:
     emails_encontrados = set()
     queries = [
         f'"{nome}" "contato@"',
         f'"{nome}" email contato',
         f'{nome} "mailto:"',
+        f'"{nome}" contato comercial email',
     ]
     try:
         with DDGS() as ddgs:
@@ -454,6 +513,21 @@ def run_email_finder(startups_coletadas: list[dict]) -> list[dict]:
             if email_ddg:
                 print(f"  [EmailFinder] {nome}: email encontrado via DDG: {email_ddg}")
                 email = email_ddg
+
+        # Fallback: buscar dados no LinkedIn
+        if (not email or not cidade) and nome:
+            linkedin_url = _buscar_linkedin(nome)
+            if linkedin_url:
+                print(f"  [EmailFinder] {nome}: LinkedIn encontrado ({linkedin_url})")
+                dados_li = _extrair_dados_linkedin(linkedin_url)
+                if not email and dados_li.get("email"):
+                    print(f"  [EmailFinder] {nome}: email encontrado via LinkedIn: {dados_li['email']}")
+                    email = dados_li["email"]
+                if not cidade and dados_li.get("cidade"):
+                    print(f"  [EmailFinder] {nome}: cidade encontrada via LinkedIn: {dados_li['cidade']}")
+                    cidade = dados_li["cidade"]
+                funcionarios = funcionarios or dados_li.get("funcionarios")
+                time.sleep(SCRAPING_DELAY_SECONDS)
 
         if email:
             email_valido, erro = validar_email(email)

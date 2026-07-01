@@ -5,6 +5,7 @@ import cohere
 from dotenv import load_dotenv
 from pipeline.config.settings import COHERE_CHAT_MODEL, MAX_RECOMENDACOES_POR_STARTUP
 from pipeline.db.connection import execute_query
+from pipeline.utils.rate_limiter import cohere_wait
 
 load_dotenv()
 
@@ -57,6 +58,7 @@ Máximo de {max_recomendacoes} recomendações. Cada campo é obrigatório.
 def _chat_com_retry(prompt: str, tentativas: int = 3, espera_base: int = 5) -> str:
     for tentativa in range(1, tentativas + 1):
         try:
+            cohere_wait()
             resposta = co_chat.chat(
                 model=COHERE_CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],

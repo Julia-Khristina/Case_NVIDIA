@@ -6,3 +6,4 @@ qdrant_local/
 *.json
 !sources.json
 !categorias_gap.json
+.env

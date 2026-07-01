@@ -4,6 +4,7 @@ import time
 import cohere
 from dotenv import load_dotenv
 from pipeline.config.settings import COHERE_CHAT_MODEL
+from pipeline.utils.rate_limiter import cohere_wait
 
 load_dotenv()
 
@@ -23,6 +24,7 @@ def _carregar_fontes() -> dict:
 def _chat_com_retry(prompt: str, tentativas: int = 3, espera_base: int = 5) -> str:
     for tentativa in range(1, tentativas + 1):
         try:
+            cohere_wait()
             resposta = co_chat.chat(
                 model=COHERE_CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],

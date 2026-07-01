@@ -8,6 +8,7 @@ from pipeline.config.settings import (
     PESO_EVIDENCIA, PESO_MOMENTUM
 )
 from pipeline.db.connection import execute_query, fetch_one
+from pipeline.utils.rate_limiter import cohere_wait
 
 load_dotenv()
 
@@ -54,6 +55,7 @@ def _classificar_com_llm(startup: dict) -> dict | None:
 
     for tentativa in range(1, 4):
         try:
+            cohere_wait()
             resposta = co_chat.chat(
                 model=COHERE_CHAT_MODEL,
                 messages=[{"role": "user", "content": prompt}],

@@ -4,7 +4,7 @@ from pipeline.db.connection import fetch_all, fetch_one, execute_query
 from pipeline.agents.email_finder import (
     _buscar_site_oficial, _extrair_dados_pagina, _filtrar_email_valido,
     _extrair_cidade, _buscar_cnpj, _consultar_receitaws, _extrair_dados_cnpj,
-    _buscar_email_ddg
+    _buscar_email_ddg, _buscar_linkedin, _extrair_dados_linkedin
 )
 from pipeline.utils.validation import validar_cidade, normalizar_cidade, validar_formato_email
 from pipeline.config.settings import SCRAPING_DELAY_SECONDS
@@ -79,6 +79,19 @@ def reprocessar_incompletas(limite: int = 50) -> dict:
                     email = email_ddg
             except Exception as e:
                 print(f"  [Reprocessor] Erro DDG para {nome}: {e}")
+
+        if (not email or not cidade) and nome:
+            try:
+                linkedin_url = _buscar_linkedin(nome)
+                if linkedin_url:
+                    dados_li = _extrair_dados_linkedin(linkedin_url)
+                    if not email and dados_li.get("email"):
+                        email = dados_li["email"]
+                    if not cidade and dados_li.get("cidade"):
+                        cidade = dados_li["cidade"]
+                    time.sleep(SCRAPING_DELAY_SECONDS)
+            except Exception as e:
+                print(f"  [Reprocessor] Erro LinkedIn para {nome}: {e}")
 
         if email and not tem_email:
             if not validar_formato_email(email):

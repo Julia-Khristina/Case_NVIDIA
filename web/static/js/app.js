@@ -30,6 +30,11 @@ function badgeContato(em) {
   return `<span class="badge badge-contato-nao">Não contatado</span>`;
 }
 
+window.fecharModal = function() {
+  const el = document.querySelector(".modal-overlay");
+  if (el) el.remove();
+};
+
 async function abrirModalEmail(startupId) {
   let data;
   try {
@@ -139,10 +144,6 @@ async function abrirModalEmail(startupId) {
     await patch(`/startups/${id}/marcar-contato`, { email });
     fecharModal();
     routeCurrentHash();
-  };
-
-  window.fecharModal = function() {
-    modal.remove();
   };
 
   window.gerarEmailIA = async function(id) {

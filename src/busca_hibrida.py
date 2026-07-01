@@ -1,11 +1,15 @@
 # busca_hibrida.py
 import json
 import os
+import sys
 import time
 import cohere
 from dotenv import load_dotenv
 from rank_bm25 import BM25Okapi
 from qdrant_client import QdrantClient
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+from pipeline.utils.rate_limiter import cohere_wait
 
 load_dotenv()
 
@@ -25,6 +29,7 @@ client = QdrantClient(path=os.path.join(_SRC_DIR, "qdrant_local"))
 def embed_com_retry(textos: list, tentativas: int = 3, espera_base: int = 5) -> list:
     for tentativa in range(1, tentativas + 1):
         try:
+            cohere_wait()
             return co.embed(
                 texts=textos,
                 model="embed-multilingual-v3.0",
